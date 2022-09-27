@@ -28,8 +28,7 @@ import numpy as np
 
 import bangpy
 from cosine_embedding_loss import CosineEmbeddingLoss, DTYPES
-# from cosine_embedding_loss import CosineEmbeddingLoss1, Logaddexp2
-from bangpy.tcp.runtime import TaskType
+from bangpy import eager
 
 
 def compute_simple_test(x_1, x_2, y, margin):
@@ -193,48 +192,50 @@ def func():
     with open(filename, "w") as file_obj:
         json.dump(results, file_obj)
 
+def debug(target, dtype, data_amount, data_width):
+    f = eager.module(CosineEmbeddingLoss)(dtype.name, True, target)
+    data_height = data_amount // dtype.bytes // data_width
+    rng = np.random.default_rng(10)
+    data_input_x1 = rng.random(data_width * data_height).reshape(
+        (data_height, data_width)
+    ).astype(dtype.as_numpy_dtype)
+    data_input_x2 = rng.random(data_width * data_height).reshape(
+        (data_height, data_width)
+    ).astype(dtype.as_numpy_dtype)
+    data_input_y = rng.integers(-1, 1, (data_height,)).astype(dtype.as_numpy_dtype)
+    data_input_y = data_input_y * 2 + 1
+    margin = rng.random()
+    data_out = np.zeros((data_height,)).astype(dtype.as_numpy_dtype)
+    data_out_cpu = np.zeros((data_height,)).astype(dtype.as_numpy_dtype)
+    data_out_cpu = compute_simple_test(
+        data_input_x1,
+        data_input_x2,
+        data_input_y,
+        margin,
+    ).astype(dtype.as_numpy_dtype)
+    f(data_input_x1, data_input_x2, data_input_y, margin, data_out, data_height, data_width)
+    print(data_out[:10])
+    print(data_out_cpu[:10])
+    diff1, diff2 = cal_diff(data_out_cpu, data_out)
+    print("DIFF1:", str(round(diff1 * 100, 5)) + "%")
+    print("DIFF2:", str(round(diff2 * 100, 5)) + "%")
+    print("============")
 
 # Main function.
 if __name__ == "__main__":
-    # func()
-    dtype = bangpy.float32
-    # dtype = bangpy.float16
+    data_amount_list = [2 ** 20 * 10, 2 ** 30, 2 ** 30 * 2, 2 ** 30 * 4, 2 ** 30 * 8]
+    data_width_list = [2 ** 5, 2 ** 5 + 1, 2 ** 5 - 1, 2 ** 6, 2 ** 7, 2 ** 8, 2 ** 9, 2 ** 10, 2 ** 11 + 1, 2 ** 11 - 1, 2 ** 12, 2 ** 13, 2 ** 14, 2 ** 15, 2 ** 16, 2 ** 17, 2 ** 18, 2 ** 19,]
+    dtype_list = [bangpy.float16, bangpy.float32]
     target="mlu290"
     # target="mlu370-s4"
-    # data_amount = 2**20*10
-    data_amount = 2**20*10
-    data_width = 2 ** 1
-    from bangpy.script import build_module
-    f = build_module.build(
-        CosineEmbeddingLoss(dtype.name, True, target), target_tag=target, name="CosineEmbeddingLoss"
-    )
-    evaluate(f, dtype, data_amount, data_width)
-
-    # from bangpy import eager
-    # f = eager.module(CosineEmbeddingLoss)(dtype.name, True, target)
-    # data_height = data_amount // dtype.bytes // data_width
-    # rng = np.random.default_rng(10)
-    # data_input_x1 = rng.random(data_width * data_height).reshape(
-    #     (data_height, data_width)
-    # ).astype(dtype.as_numpy_dtype)
-    # data_input_x2 = rng.random(data_width * data_height).reshape(
-    #     (data_height, data_width)
-    # ).astype(dtype.as_numpy_dtype)
-    # data_input_y = rng.integers(-1, 1, (data_height,)).astype(dtype.as_numpy_dtype)
-    # data_input_y = data_input_y * 2 + 1
-    # margin = rng.random()
-    # data_out = np.zeros((data_height,)).astype(dtype.as_numpy_dtype)
-    # data_out_cpu = np.zeros((data_height,)).astype(dtype.as_numpy_dtype)
-
-    # data_out_cpu = compute_simple_test(
-    #     data_input_x1,
-    #     data_input_x2,
-    #     data_input_y,
-    #     margin,
-    # ).astype(dtype.as_numpy_dtype)
-    # f(data_input_x1, data_input_x2, data_input_y, margin, data_out, data_height, data_width)
-    # # print(data_out_cpu[:10])
-    # # print(data_out[:10])
-    # diff1, diff2 = cal_diff(data_out_cpu, data_out)
-    # print("DIFF1:", str(round(diff1 * 100, 5)) + "%")
-    # print("DIFF2:", str(round(diff2 * 100, 5)) + "%")
+    # func()
+    # from bangpy.script import build_module
+    # for dtype in dtype_list:
+    #     f = build_module.build(
+    #         CosineEmbeddingLoss(dtype.name, True, target), target_tag=target, name="CosineEmbeddingLoss"
+    #     )
+    #     for data_amount in data_amount_list:
+    #         for data_width in data_width_list:
+    #             print(f"{dtype.name} {data_amount} {data_width}=============")
+    #             evaluate(f, dtype, data_amount, data_width)
+    debug(target, dtype=bangpy.float32, data_amount=2**8*10, data_width=1024)

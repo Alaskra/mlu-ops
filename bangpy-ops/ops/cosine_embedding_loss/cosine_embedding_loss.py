@@ -149,11 +149,6 @@ class CosineEmbeddingLoss(object):
         """
         Transform the original scalar compute into vector compute.
         """
-        # tcp.print("final compute==========")
-        # tcp.print(v_0[:5])
-        # tcp.print(v_1[:5])
-        # tcp.print(v_2[:5])
-        # tcp.print(v_3[:5])
         tcp.multiply(v_1, v_1, v_2)  # v_1 * v_2
         tcp.sqrt(v_1, v_1)  # (v_1 * v_2) ** 0.5
 
@@ -191,10 +186,8 @@ class CosineEmbeddingLoss(object):
 
         # (1 - v_3) * max(v_1 * v_2, 0)
         tcp.multiply(v_1, v_1, v_3)
-        # tcp.print(v_1[:5])
         tcp.add(v_0, v_1, v_0)
         tcp.multiply(v_0, v_0, 0.5)
-        # tcp.print(v_0[:5])
 
     def main(
         self,
@@ -283,7 +276,6 @@ class CosineEmbeddingLoss(object):
                     upper_sum = 0.0
                     lower1_sum = 0.0
                     lower2_sum = 0.0
-
                     for j in range(inner_loop_bound, pipeline=self.pipeline):
                         # Nram buffers.
                         input_buffer_x1 = tcp.alloc_buffer(
@@ -396,10 +388,10 @@ class CosineEmbeddingLoss(object):
                             tcp.assign(self.inter_buffer, 0.0)
 
                         with tcp.block("data_copy"):
-                            # Nram cannot store one single data row.
+                            # Nram cannot, store one single data row.
                             if batch_size == 0:
-                                # if task_id == 0:
-                                #     tcp.print("case1===============")
+                                if task_id == 0:
+                                    tcp.print("case1===============")
                                 base = j * kernels_nram * kernel_size
                                 end = kernels_nram * kernel_size + base
                                 end = tcp.min(end, length)
@@ -416,8 +408,8 @@ class CosineEmbeddingLoss(object):
                             # but less than align_size(128bytes//dtype.bytes) rows,
                             # which means we cannot use sumpool to compute all the sum at one time.
                             elif rows_per_line == 0:
-                                # if task_id == 0:
-                                #     tcp.print("case2===============")
+                                if task_id == 0:
+                                    tcp.print("case2===============")
                                 base = batch_size * j + task_row_base
                                 end = base + batch_size
                                 end = tcp.min(end, task_row_end)
@@ -450,8 +442,8 @@ class CosineEmbeddingLoss(object):
                             # when transpose:
                             # x2 -> x1, inter_buffer -> x2
                             else:
-                                # if task_id == 0:
-                                #     tcp.print("case3===============")
+                                if task_id == 0:
+                                    tcp.print("case3===============")
                                 base = batch_size * j + task_row_base
                                 end = base + batch_size
                                 end = tcp.min(end, task_row_end)
@@ -571,6 +563,7 @@ class CosineEmbeddingLoss(object):
                                             kernels_per_line_n,
                                             kernel_size,
                                         )
+                                        # fix later: return bug cause Accuracy is not up to standard
                                         lower1_sum = self.compute_sum_batch_1(
                                             comp_x1,
                                             comp_x1,
@@ -580,6 +573,10 @@ class CosineEmbeddingLoss(object):
                                             kernels_per_line_n,
                                             kernel_size,
                                         )
+                                        # if k == 0:
+                                        #     tcp.print(comp_inter[0][0]+0.1)
+                                        #     tcp.print(upper_sum+0.1)
+                                        #     tcp.print(lower1_sum+0.1)
                                         lower2_sum = self.compute_sum_batch_1(
                                             comp_x2,
                                             comp_x2,
@@ -589,6 +586,11 @@ class CosineEmbeddingLoss(object):
                                             kernels_per_line_n,
                                             kernel_size,
                                         )
+                                        # if k == 0:
+                                        #     tcp.print(comp_inter[0][0]+0.1)
+                                        #     tcp.print(upper_sum+0.1)
+                                        #     tcp.print(lower1_sum+0.1)
+                                        #     tcp.print(lower2_sum+0.1)
 
                                         # Compute final result.
                                         if lower1_sum != 0.0 and lower2_sum != 0.0:
@@ -613,7 +615,7 @@ class CosineEmbeddingLoss(object):
 
                                 # Nram can store more than align_size rows of data.
                                 else:
-                                    # fix later: 在300以下架构的对齐限制未解除，需要输入和输出张量的H和W都64字节对齐
+                                    # 在300以下架构的对齐限制无法解除，需要输入和输出张量的H和W都64字节对齐
                                     batch_size = batch_size // align_size * align_size
                                     comps_x1 = input_buffer_x1[
                                         : kernel_size * kernels_per_row * batch_size
