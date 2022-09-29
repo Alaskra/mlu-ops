@@ -65,31 +65,20 @@ def cal_diff(result, data_out):
 ###################################################
 # Testing Parameters
 ###################################################
-# Data amounts 1,2,4,8GB.
-data_amounts = [2 ** 20 * 10, 2 ** 30, 2 ** 30 * 2, 2 ** 30 * 4, 2 ** 30 * 8]
-
-# Data width.
+data_amounts = [2 ** 20 * 10, 2 ** 28, 2 **29, 2 ** 30]
 data_widths = [
     2 ** 5,
     2 ** 5 + 1,
     2 ** 5 - 1,
-    2 ** 6,
     2 ** 7,
-    2 ** 8,
     2 ** 9,
-    2 ** 10,
     2 ** 11 + 1,
     2 ** 11 - 1,
-    2 ** 12,
     2 ** 13,
-    2 ** 14,
     2 ** 15,
-    2 ** 16,
     2 ** 17,
-    2 ** 18,
     2 ** 19,
 ]
-
 target = "mlu290"
 
 def evaluate(f, dtype, data_amount, data_width):
@@ -123,7 +112,6 @@ def evaluate(f, dtype, data_amount, data_width):
         margin,
     ).astype(dtype.as_numpy_dtype)
     f(data_input_x1_dev, data_input_x2_dev, data_input_y_dev, margin, data_out_dev, data_height, data_width)
-    # print(f.get_source())
 
     dev_out = data_out_dev.numpy()
 
@@ -226,9 +214,4 @@ def debug(dtype, data_amount, data_width):
 
 # Main function.
 if __name__ == "__main__":
-    # debug(dtype=bangpy.float16, data_amount=2**30, data_width=32)
-    # func()
-    f = build_module.build(
-        CosineEmbeddingLoss(bangpy.float16.name, True, target), target_tag=target, name="CosineEmbeddingLoss"
-    )
-    evaluate(f, bangpy.float16, 2**30*2, 33)
+    func()

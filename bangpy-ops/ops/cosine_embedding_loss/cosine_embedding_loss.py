@@ -18,11 +18,9 @@
 # CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-"""cosine embedding loss for bangpy tcp"""
+"""cosine embedding loss for bangpy tcp script"""
 
 import bangpy
-
-# from bangpy import tcp
 from bangpy.common.dtypes import DType
 from bangpy.script import tcp, build_module, ty
 
@@ -30,7 +28,6 @@ DTYPES = [bangpy.float16, bangpy.float32]
 TARGET_LIST = ["mlu290", "mlu370-s4", "mlu370-m8"]
 KERNEL_NAME = "cosine_embedding_loss"
 CORES_PER_CLUSTER = 4
-# MLU290_MAX_BUFFER_SIZE = 16 * 512 * 8
 
 
 class CosineEmbeddingLoss(object):
@@ -69,6 +66,7 @@ class CosineEmbeddingLoss(object):
         kernel_size: ty.int32,
         kernels_per_line: ty.int32,
     ) -> ty.float32:
+        """compute_sum_batch_0"""
         tcp.multiply(self.inter_buffer, in1, in2)
         tcp.sumpool(temp_n, inter_n, (kernel_size,), (kernel_size,))
         tcp.sumpool(
@@ -78,9 +76,7 @@ class CosineEmbeddingLoss(object):
             (kernels_per_line,),
         )
         tcp.sum(temp_n[0][0], inter_n[0])
-        return tcp.cast(temp_n[0][0], "float32") + tcp.cast(
-            out, "float32"
-        )  # can be more simple?
+        return tcp.cast(temp_n[0][0], "float32") + tcp.cast(out, "float32")
 
     def compute_sum_batch_1(
         self,
@@ -92,16 +88,12 @@ class CosineEmbeddingLoss(object):
         kernels_per_line_n: ty.int32,
         kernel_size: ty.int32,
     ) -> None:
+        """compute_sum_batch_1"""
         tcp.multiply(
-            self.inter_buffer[: kernel_size * kernels_per_row],
-            in1,
-            in2,
+            self.inter_buffer[: kernel_size * kernels_per_row], in1, in2,
         )
         tcp.sumpool(
-            temp_n[:kernels_per_line_n],
-            comp_inter,
-            (kernel_size,),
-            (kernel_size,),
+            temp_n[:kernels_per_line_n], comp_inter, (kernel_size,), (kernel_size,),
         )
         tcp.sumpool(
             comp_inter[0:1],
@@ -123,13 +115,10 @@ class CosineEmbeddingLoss(object):
         batch_size: ty.int32,
         kernels_per_row: ty.int32,
     ) -> None:
+        """compute_sum_batch_2"""
         tcp.multiply(comps_inter, in1, in2)
         tcp.sumpool(
-            # temp_n[:1],
-            temp_n,
-            comps_inter,
-            (kernel_size,),
-            (kernel_size,),
+            temp_n[0:1], comps_inter, (kernel_size,), (kernel_size,),
         )
         tcp.sumpool(
             out[0:batch_size].reshape((1, batch_size)),
@@ -261,7 +250,9 @@ class CosineEmbeddingLoss(object):
                 outer_loop_bound = 1
 
                 if batch_size == 0:
-                    inner_loop_bound = (kernels_per_row + kernels_nram - 1) // kernels_nram
+                    inner_loop_bound = (
+                        kernels_per_row + kernels_nram - 1
+                    ) // kernels_nram
                     outer_loop_bound = task_row_num
 
                 for i in range(outer_loop_bound):
@@ -291,33 +282,25 @@ class CosineEmbeddingLoss(object):
                             [max_buffer_size], dtype=self.dtype, scope="nram"
                         )
                         input_buffer_y = tcp.alloc_buffer(
-                            [max_reduced_buffer_size],
-                            dtype=self.dtype,
-                            scope="nram",
+                            [max_reduced_buffer_size], dtype=self.dtype, scope="nram",
                         )
                         input_buffer_y = input_buffer_y[
                             : (batch_size + align_size - 1) // align_size * align_size
                         ]
                         upper = tcp.alloc_buffer(
-                            [max_reduced_buffer_size],
-                            dtype=self.dtype,
-                            scope="nram",
+                            [max_reduced_buffer_size], dtype=self.dtype, scope="nram",
                         )
                         upper = upper[
                             : (batch_size + align_size - 1) // align_size * align_size
                         ]
                         lower1 = tcp.alloc_buffer(
-                            [max_reduced_buffer_size],
-                            dtype=self.dtype,
-                            scope="nram",
+                            [max_reduced_buffer_size], dtype=self.dtype, scope="nram",
                         )
                         lower1 = lower1[
                             : (batch_size + align_size - 1) // align_size * align_size
                         ]
                         lower2 = tcp.alloc_buffer(
-                            [max_reduced_buffer_size],
-                            dtype=self.dtype,
-                            scope="nram",
+                            [max_reduced_buffer_size], dtype=self.dtype, scope="nram",
                         )
                         lower2 = lower2[
                             : (batch_size + align_size - 1) // align_size * align_size
@@ -329,56 +312,35 @@ class CosineEmbeddingLoss(object):
                             : batch_size * kernel_size * kernels_per_row
                         ].reshape((batch_size, kernel_size * kernels_per_row))
                         temp_0 = tcp.alloc_buffer(
-                            [max_reduced_buffer_size],
-                            dtype="float32",
-                            scope="nram",
+                            [max_reduced_buffer_size], dtype="float32", scope="nram",
                         )
                         temp_0 = temp_0[
-                            : (batch_size + align_size - 1)
-                            // align_size
-                            * align_size
+                            : (batch_size + align_size - 1) // align_size * align_size
                         ]
                         temp_1 = tcp.alloc_buffer(
-                            [max_reduced_buffer_size],
-                            dtype="float32",
-                            scope="nram",
+                            [max_reduced_buffer_size], dtype="float32", scope="nram",
                         )
                         temp_1 = temp_1[
-                            : (batch_size + align_size - 1)
-                            // align_size
-                            * align_size
+                            : (batch_size + align_size - 1) // align_size * align_size
                         ]
                         temp_2 = tcp.alloc_buffer(
-                            [max_reduced_buffer_size],
-                            dtype="float32",
-                            scope="nram",
+                            [max_reduced_buffer_size], dtype="float32", scope="nram",
                         )
                         temp_2 = temp_2[
-                            : (batch_size + align_size - 1)
-                            // align_size
-                            * align_size
+                            : (batch_size + align_size - 1) // align_size * align_size
                         ]
                         temp_3 = tcp.alloc_buffer(
-                            [max_reduced_buffer_size],
-                            dtype="float32",
-                            scope="nram",
+                            [max_reduced_buffer_size], dtype="float32", scope="nram",
                         )
                         temp_3 = temp_3[
-                            : (batch_size + align_size - 1)
-                            // align_size
-                            * align_size
+                            : (batch_size + align_size - 1) // align_size * align_size
                         ]
                         temp_4 = tcp.alloc_buffer(
-                            [max_reduced_buffer_size],
-                            dtype="float32",
-                            scope="nram",
+                            [max_reduced_buffer_size], dtype="float32", scope="nram",
                         )
                         temp_4 = temp_4[
-                            : (batch_size + align_size - 1)
-                            // align_size
-                            * align_size
+                            : (batch_size + align_size - 1) // align_size * align_size
                         ]
-
 
                         with tcp.block("compute"):
                             # Initialize buffer.
@@ -530,10 +492,7 @@ class CosineEmbeddingLoss(object):
                                     comp_inter = self.inter_buffer[
                                         : kernels_per_line_n * align_size * kernel_size
                                     ].reshape(
-                                        (
-                                            kernel_size * kernels_per_line_n,
-                                            align_size,
-                                        )
+                                        (kernel_size * kernels_per_line_n, align_size,)
                                     )
                                     temp_n = temp_buffer[
                                         : kernels_per_line_n * align_size
@@ -542,7 +501,7 @@ class CosineEmbeddingLoss(object):
                                     if j <= 1:
                                         tcp.assign(self.inter_buffer, 0)
 
-                                    # # Use for loop to compute result of each row.
+                                    # Use for loop to compute result of each row.
                                     for k in range(batch_size):
                                         comp_x1 = comps_x1[k]
                                         comp_x2 = comps_x2[k]
@@ -598,7 +557,7 @@ class CosineEmbeddingLoss(object):
 
                                 # Nram can store more than align_size rows of data.
                                 else:
-                                    # 在300以下架构的对齐限制无法解除，需要输入和输出张量的H和W都64字节对齐
+                                    # arch below mlu3xx need 64 byte align
                                     batch_size = batch_size // align_size * align_size
                                     comps_x1 = input_buffer_x1[
                                         : kernel_size * kernels_per_row * batch_size
@@ -677,7 +636,9 @@ class CosineEmbeddingLoss(object):
                                         tcp.type_convert(temp_0, upper, 0, "rd")
                                         tcp.type_convert(temp_1, lower1, 0, "rd")
                                         tcp.type_convert(temp_2, lower2, 0, "rd")
-                                        tcp.type_convert( temp_3, input_buffer_y, 0, "rd")
+                                        tcp.type_convert(
+                                            temp_3, input_buffer_y, 0, "rd"
+                                        )
                                         self.compute_final_result(
                                             temp_0,
                                             temp_1,
@@ -686,7 +647,9 @@ class CosineEmbeddingLoss(object):
                                             temp_4,
                                             margin,
                                         )
-                                        tcp.type_convert(upper, temp_0, 0, "rd") # fix later: optional parameter can't ignore
+                                        tcp.type_convert(
+                                            upper, temp_0, 0, "rd"
+                                        )  # fix later: optional parameter can't ignore
 
                         with tcp.block("data_copy"):
                             # Memcpy of output for the last two cases.
@@ -707,10 +670,15 @@ class CosineEmbeddingLoss(object):
                         lower1_sum = 0.0
                         lower2_sum = upper_sum - margin
                         if self.dtype == "float16":
-                            output[row] = tcp.cast((
-                                (input_y[row] + 1) * (1 - upper_sum)
-                                + (1 - input_y[row]) * tcp.max(lower1_sum, lower2_sum)
-                            ) / 2, "float16")
+                            output[row] = tcp.cast(
+                                (
+                                    (input_y[row] + 1) * (1 - upper_sum)
+                                    + (1 - input_y[row])
+                                    * tcp.max(lower1_sum, lower2_sum)
+                                )
+                                / 2,
+                                "float16",
+                            )
                         else:
                             output[row] = (
                                 (input_y[row] + 1) * (1 - upper_sum)
