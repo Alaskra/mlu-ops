@@ -29,7 +29,7 @@ import numpy as np
 import bangpy
 from cosine_embedding_loss import CosineEmbeddingLoss, DTYPES
 from bangpy import eager
-
+from bangpy.script import build_module
 
 def compute_simple_test(x_1, x_2, y, margin):
     """
@@ -89,6 +89,8 @@ data_widths = [
     2 ** 18,
     2 ** 19,
 ]
+
+target = "mlu290"
 
 def evaluate(f, dtype, data_amount, data_width):
     """
@@ -181,9 +183,10 @@ def func():
             "diff2",
         ]
     ]
-    target = "mlu290"
     for dtype in DTYPES:
-        f = CosineEmbeddingLoss(dtype.name, True, target).compute_body()
+        f = build_module.build(
+            CosineEmbeddingLoss(dtype.name, True, target), target_tag=target, name="CosineEmbeddingLoss"
+        )
         for data_amount in data_amounts:
             for data_width in data_widths:
                 results.append(evaluate(f, dtype, data_amount, data_width))
@@ -192,7 +195,7 @@ def func():
     with open(filename, "w") as file_obj:
         json.dump(results, file_obj)
 
-def debug(target, dtype, data_amount, data_width):
+def debug(dtype, data_amount, data_width):
     f = eager.module(CosineEmbeddingLoss)(dtype.name, True, target)
     data_height = data_amount // dtype.bytes // data_width
     rng = np.random.default_rng(10)
@@ -223,19 +226,9 @@ def debug(target, dtype, data_amount, data_width):
 
 # Main function.
 if __name__ == "__main__":
-    data_amount_list = [2 ** 20 * 10, 2 ** 30, 2 ** 30 * 2, 2 ** 30 * 4, 2 ** 30 * 8]
-    data_width_list = [2 ** 5, 2 ** 5 + 1, 2 ** 5 - 1, 2 ** 6, 2 ** 7, 2 ** 8, 2 ** 9, 2 ** 10, 2 ** 11 + 1, 2 ** 11 - 1, 2 ** 12, 2 ** 13, 2 ** 14, 2 ** 15, 2 ** 16, 2 ** 17, 2 ** 18, 2 ** 19,]
-    dtype_list = [bangpy.float16, bangpy.float32]
-    target="mlu290"
-    # target="mlu370-s4"
+    # debug(dtype=bangpy.float16, data_amount=2**30, data_width=32)
     # func()
-    # from bangpy.script import build_module
-    # for dtype in dtype_list:
-    #     f = build_module.build(
-    #         CosineEmbeddingLoss(dtype.name, True, target), target_tag=target, name="CosineEmbeddingLoss"
-    #     )
-    #     for data_amount in data_amount_list:
-    #         for data_width in data_width_list:
-    #             print(f"{dtype.name} {data_amount} {data_width}=============")
-    #             evaluate(f, dtype, data_amount, data_width)
-    debug(target, dtype=bangpy.float32, data_amount=2**8*10, data_width=1024)
+    f = build_module.build(
+        CosineEmbeddingLoss(bangpy.float16.name, True, target), target_tag=target, name="CosineEmbeddingLoss"
+    )
+    evaluate(f, bangpy.float16, 2**30*2, 33)

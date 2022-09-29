@@ -125,7 +125,8 @@ class CosineEmbeddingLoss(object):
     ) -> None:
         tcp.multiply(comps_inter, in1, in2)
         tcp.sumpool(
-            temp_n[:1],
+            # temp_n[:1],
+            temp_n,
             comps_inter,
             (kernel_size,),
             (kernel_size,),
@@ -152,7 +153,6 @@ class CosineEmbeddingLoss(object):
         tcp.multiply(v_1, v_1, v_2)  # v_1 * v_2
         tcp.sqrt(v_1, v_1)  # (v_1 * v_2) ** 0.5
 
-        # fix later
         if self.arch >= "mlu3":
             tcp.maximum(v_2, v_1, 0.004)
         else:
@@ -162,7 +162,6 @@ class CosineEmbeddingLoss(object):
         # v_0 / (v_1 * v_2) ** 0.5
         # v_0 <- v_0 / (v_1 * v_2) ** 0.5
         tcp.divide(v_1, v_0, v_2)
-        # tcp.print(v_1[:5])
         # v_0 / (v_1 * v_2) ** 0.5 - margin
         tcp.subtract(v_2, v_1, margin)
         # (1 - v_0)
@@ -390,8 +389,6 @@ class CosineEmbeddingLoss(object):
                         with tcp.block("data_copy"):
                             # Nram cannot, store one single data row.
                             if batch_size == 0:
-                                if task_id == 0:
-                                    tcp.print("case1===============")
                                 base = j * kernels_nram * kernel_size
                                 end = kernels_nram * kernel_size + base
                                 end = tcp.min(end, length)
@@ -408,8 +405,6 @@ class CosineEmbeddingLoss(object):
                             # but less than align_size(128bytes//dtype.bytes) rows,
                             # which means we cannot use sumpool to compute all the sum at one time.
                             elif rows_per_line == 0:
-                                if task_id == 0:
-                                    tcp.print("case2===============")
                                 base = batch_size * j + task_row_base
                                 end = base + batch_size
                                 end = tcp.min(end, task_row_end)
@@ -442,8 +437,6 @@ class CosineEmbeddingLoss(object):
                             # when transpose:
                             # x2 -> x1, inter_buffer -> x2
                             else:
-                                if task_id == 0:
-                                    tcp.print("case3===============")
                                 base = batch_size * j + task_row_base
                                 end = base + batch_size
                                 end = tcp.min(end, task_row_end)
@@ -563,7 +556,6 @@ class CosineEmbeddingLoss(object):
                                             kernels_per_line_n,
                                             kernel_size,
                                         )
-                                        # fix later: return bug cause Accuracy is not up to standard
                                         lower1_sum = self.compute_sum_batch_1(
                                             comp_x1,
                                             comp_x1,
@@ -573,10 +565,6 @@ class CosineEmbeddingLoss(object):
                                             kernels_per_line_n,
                                             kernel_size,
                                         )
-                                        # if k == 0:
-                                        #     tcp.print(comp_inter[0][0]+0.1)
-                                        #     tcp.print(upper_sum+0.1)
-                                        #     tcp.print(lower1_sum+0.1)
                                         lower2_sum = self.compute_sum_batch_1(
                                             comp_x2,
                                             comp_x2,
@@ -586,11 +574,6 @@ class CosineEmbeddingLoss(object):
                                             kernels_per_line_n,
                                             kernel_size,
                                         )
-                                        # if k == 0:
-                                        #     tcp.print(comp_inter[0][0]+0.1)
-                                        #     tcp.print(upper_sum+0.1)
-                                        #     tcp.print(lower1_sum+0.1)
-                                        #     tcp.print(lower2_sum+0.1)
 
                                         # Compute final result.
                                         if lower1_sum != 0.0 and lower2_sum != 0.0:
