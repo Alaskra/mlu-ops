@@ -186,14 +186,19 @@ def func():
 def debug(dtype, data_amount, data_width):
     f = eager.module(CosineEmbeddingLoss)(dtype.name, True, target)
     data_height = data_amount // dtype.bytes // data_width
-    rng = np.random.default_rng(10)
+    # rng = np.random.default_rng(10)
+    rng = np.random.default_rng(13)
     data_input_x1 = rng.random(data_width * data_height).reshape(
         (data_height, data_width)
     ).astype(dtype.as_numpy_dtype)
     data_input_x2 = rng.random(data_width * data_height).reshape(
         (data_height, data_width)
     ).astype(dtype.as_numpy_dtype)
-    data_input_y = rng.integers(-1, 1, (data_height,)).astype(dtype.as_numpy_dtype)
+    rang = 80
+    data_input_x1 = data_input_x1*2*rang-rang
+    data_input_x2 = data_input_x2*2*rang-rang
+    # data_input_y = rng.integers(-1, 1, (data_height,)).astype(dtype.as_numpy_dtype)
+    data_input_y = rng.integers(0, 1, (data_height,)).astype(dtype.as_numpy_dtype)
     data_input_y = data_input_y * 2 + 1
     margin = rng.random()
     data_out = np.zeros((data_height,)).astype(dtype.as_numpy_dtype)
@@ -214,4 +219,11 @@ def debug(dtype, data_amount, data_width):
 
 # Main function.
 if __name__ == "__main__":
-    func()
+    # debug(bangpy.float16, 2**20, 2**10)  # case2 true
+    # debug(bangpy.float16, 2**20, 2**16)  # case1 true
+    # debug(bangpy.float32, 2**7, 2**5) # case3 true
+    # debug(bangpy.float32, 131072, 32) # case3 true
+    # debug(bangpy.float16, 2**17, 2**7) # case3 true
+    # debug(bangpy.float16, 2**6, 2**5) # case3 true
+    # debug(bangpy.float16, 2**8, 2**7) # case3 false
+    debug(bangpy.float16, 2**6, 2**5)
